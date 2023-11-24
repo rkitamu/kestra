@@ -6,6 +6,7 @@
         :placeholder="$t('Select namespace')"
         :persistent="false"
         filterable
+        :allow-create="allowCreate"
     >
         <el-option
             v-for="item in groupedNamespaces"
@@ -29,6 +30,14 @@
             value: {
                 type: String,
                 default: undefined
+            },
+            allowCreate: {
+                type: Boolean,
+                default: false
+            },
+            isFilter: {
+                type: Boolean,
+                default: true
             }
         },
         emits: ["update:modelValue"],
@@ -73,7 +82,7 @@
                 });
 
                 // Remove duplicate namespaces ...
-                return _uniqBy(res,"code");
+                return _uniqBy(res,"code").filter(ns => namespaces.includes(ns.code) || this.isFilter);
             },
         }
     };

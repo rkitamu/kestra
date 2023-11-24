@@ -64,19 +64,19 @@ public class FlowableUtils {
         }
 
         // first created, leave
-        Optional<TaskRun> lastCreated = execution.findLastCreated(currentTasks, parentTaskRun);
+        Optional<TaskRun> lastCreated = execution.findLastCreated(taskRuns);
         if (lastCreated.isPresent()) {
             return Collections.emptyList();
         }
 
         // have running, leave
-        Optional<TaskRun> lastRunning = execution.findLastRunning(currentTasks, parentTaskRun);
+        Optional<TaskRun> lastRunning = execution.findLastRunning(taskRuns);
         if (lastRunning.isPresent()) {
             return Collections.emptyList();
         }
 
         // last success, find next
-        Optional<TaskRun> lastTerminated = execution.findLastTerminated(currentTasks, parentTaskRun);
+        Optional<TaskRun> lastTerminated = execution.findLastTerminated(taskRuns);
         if (lastTerminated.isPresent()) {
             int lastIndex = taskRuns.indexOf(lastTerminated.get());
 
@@ -93,7 +93,8 @@ public class FlowableUtils {
         List<ResolvedTask> tasks,
         List<ResolvedTask> errors,
         TaskRun parentTaskRun,
-        RunContext runContext
+        RunContext runContext,
+        boolean allowFailure
     ) {
         List<ResolvedTask> currentTasks = execution.findTaskDependingFlowState(tasks, errors, parentTaskRun);
 
@@ -105,19 +106,19 @@ public class FlowableUtils {
                 execution.getId()
             );
 
-            return Optional.of(State.Type.FAILED);
+            return Optional.of(allowFailure ? State.Type.WARNING : State.Type.FAILED);
         } else if (currentTasks.stream().allMatch(t -> t.getTask().getDisabled()) && !currentTasks.isEmpty()) {
             // if all child tasks are disabled, we end in SUCCESS
             return Optional.of(State.Type.SUCCESS);
         } else if (!currentTasks.isEmpty()) {
             // handle nominal case, tasks or errors flow are ready to be analysed
             if (execution.isTerminated(currentTasks, parentTaskRun)) {
-                return Optional.of(execution.guessFinalState(tasks, parentTaskRun));
+                return Optional.of(execution.guessFinalState(tasks, parentTaskRun, allowFailure));
             }
         } else {
             // first call, the error flow is not ready, we need to notify the parent task that can be failed to init error flows
             if (execution.hasFailed(tasks, parentTaskRun)) {
-                return Optional.of(execution.guessFinalState(tasks, parentTaskRun));
+                return Optional.of(execution.guessFinalState(tasks, parentTaskRun, allowFailure));
             }
         }
 
@@ -236,7 +237,7 @@ public class FlowableUtils {
         }
 
         // first created, leave
-        Optional<TaskRun> lastCreated = execution.findLastCreated(currentTasks, parentTaskRun);
+        Optional<TaskRun> lastCreated = execution.findLastCreated(taskRuns);
 
         if (!notFinds.isEmpty() && lastCreated.isEmpty()) {
             Stream<NextTaskRun> nextTaskRunStream = notFinds
@@ -276,6 +277,9 @@ public class FlowableUtils {
             for (Object obj : (List<Object>) value) {
                 if (obj instanceof String) {
                     values.add(runContext.render((String) obj));
+                }
+                else if (obj instanceof Integer) {
+                    values.add(runContext.render(obj.toString()));
                 }
                 else if(obj instanceof Map<?, ?>) {
                     //JSON or YAML map

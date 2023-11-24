@@ -10,8 +10,10 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Streams;
 import io.kestra.core.models.Label;
+import io.kestra.core.models.TenantInterface;
 import io.kestra.core.serializers.ListOrMapOfLabelDeserializer;
 import io.kestra.core.serializers.ListOrMapOfLabelSerializer;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.Builder;
 import lombok.Value;
 import lombok.With;
@@ -32,12 +34,15 @@ import java.util.stream.Stream;
 import java.util.zip.CRC32;
 import io.micronaut.core.annotation.Nullable;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Pattern;
 
 @Value
 @Builder(toBuilder = true)
 @Slf4j
-public class Execution implements DeletedInterface {
+public class Execution implements DeletedInterface, TenantInterface {
     @With
+    @Hidden
+    @Pattern(regexp = "^[a-z0-9][a-z0-9_-]*")
     String tenantId;
 
     @NotNull
@@ -296,7 +301,6 @@ public class Execution implements DeletedInterface {
             .findFirst();
     }
 
-    @SuppressWarnings("UnstableApiUsage")
     public Optional<TaskRun> findLastNotTerminated() {
         if (this.taskRunList == null) {
             return Optional.empty();
@@ -308,37 +312,29 @@ public class Execution implements DeletedInterface {
         );
     }
 
-    @SuppressWarnings("UnstableApiUsage")
-    public Optional<TaskRun> findLastByState(List<ResolvedTask> resolvedTasks, State.Type state, TaskRun taskRun) {
-        return Streams.findLast(this.findTaskRunByTasks(resolvedTasks, taskRun)
+    public Optional<TaskRun> findLastByState(List<TaskRun> taskRuns, State.Type state) {
+        return Streams.findLast(taskRuns
             .stream()
             .filter(t -> t.getState().getCurrent() == state)
         );
     }
 
-    @SuppressWarnings("UnstableApiUsage")
-    public Optional<TaskRun> findLastCreated(List<ResolvedTask> resolvedTasks, TaskRun taskRun) {
-        return Streams.findLast(this.findTaskRunByTasks(resolvedTasks, taskRun)
+    public Optional<TaskRun> findLastCreated(List<TaskRun> taskRuns) {
+        return Streams.findLast(taskRuns
             .stream()
             .filter(t -> t.getState().isCreated())
         );
     }
 
-    @SuppressWarnings("UnstableApiUsage")
-    public Optional<TaskRun> findLastRunning(List<ResolvedTask> resolvedTasks, TaskRun taskRun) {
-        return Streams.findLast(this.findTaskRunByTasks(resolvedTasks, taskRun)
+    public Optional<TaskRun> findLastRunning(List<TaskRun> taskRuns) {
+        return Streams.findLast(taskRuns
             .stream()
             .filter(t -> t.getState().isRunning())
         );
     }
 
-    public Optional<TaskRun> findLastTerminated(List<ResolvedTask> resolvedTasks, TaskRun taskRun) {
-        List<TaskRun> taskRuns = this.findTaskRunByTasks(resolvedTasks, taskRun);
-
-        ArrayList<TaskRun> reverse = new ArrayList<>(taskRuns);
-        Collections.reverse(reverse);
-
-        return Streams.findLast(this.findTaskRunByTasks(resolvedTasks, taskRun)
+    public Optional<TaskRun> findLastTerminated(List<TaskRun> taskRuns) {
+        return Streams.findLast(taskRuns
             .stream()
             .filter(t -> t.getState().isTerminated())
         );
@@ -417,26 +413,32 @@ public class Execution implements DeletedInterface {
     }
 
     public State.Type guessFinalState(Flow flow) {
-        return this.guessFinalState(ResolvedTask.of(flow.getTasks()), null);
+        return this.guessFinalState(ResolvedTask.of(flow.getTasks()), null, false);
     }
 
-    public State.Type guessFinalState(List<ResolvedTask> currentTasks, TaskRun parentTaskRun) {
-        return this
-            .findLastByState(currentTasks, State.Type.KILLED, parentTaskRun)
+    public State.Type guessFinalState(List<ResolvedTask> currentTasks, TaskRun parentTaskRun, boolean allowFailure) {
+        List<TaskRun> taskRuns = this.findTaskRunByTasks(currentTasks, parentTaskRun);
+        var state = this
+            .findLastByState(taskRuns, State.Type.KILLED)
             .map(taskRun -> taskRun.getState().getCurrent())
             .or(() -> this
-                .findLastByState(currentTasks, State.Type.FAILED, parentTaskRun)
+                .findLastByState(taskRuns, State.Type.FAILED)
                 .map(taskRun -> taskRun.getState().getCurrent())
             )
             .or(() -> this
-                .findLastByState(currentTasks, State.Type.WARNING, parentTaskRun)
+                .findLastByState(taskRuns, State.Type.WARNING)
                 .map(taskRun -> taskRun.getState().getCurrent())
             )
             .or(() -> this
-                .findLastByState(currentTasks, State.Type.PAUSED, parentTaskRun)
+                .findLastByState(taskRuns, State.Type.PAUSED)
                 .map(taskRun -> taskRun.getState().getCurrent())
             )
             .orElse(State.Type.SUCCESS);
+
+        if (state == State.Type.FAILED && allowFailure) {
+            return State.Type.WARNING;
+        }
+        return state;
     }
 
     @JsonIgnore

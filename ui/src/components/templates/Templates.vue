@@ -1,6 +1,36 @@
 <template>
+    <top-nav-bar :title="routeInfo.title">
+        <template #additional-right v-if="user && user.hasAnyAction(permission.TEMPLATE, action.CREATE)">
+            <ul>
+                <li>
+                    <div class="el-input el-input-file el-input--large custom-upload">
+                        <div class="el-input__wrapper">
+                            <label for="importTemplates">
+                                <Upload />
+                                {{ $t('import') }}
+                            </label>
+                            <input
+                                id="importTemplates"
+                                class="el-input__inner"
+                                type="file"
+                                @change="importTemplates()"
+                                ref="file"
+                            >
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <router-link :to="{name: 'templates/create'}">
+                        <el-button :icon="Plus" type="primary" size="large">
+                            {{ $t('create') }}
+                        </el-button>
+                    </router-link>
+                </li>
+            </ul>
+        </template>
+    </top-nav-bar>
     <templates-deprecated />
-    <div v-if="ready">
+    <div class="mt-3" v-if="ready">
         <div>
             <data-table
                 @page-changed="onPageChanged"
@@ -76,7 +106,7 @@
                                     <router-link
                                         :to="{name: 'templates/update', params : {namespace: scope.row.namespace, id: scope.row.id}}">
                                         <kicon :tooltip="$t('details')" placement="left">
-                                            <eye />
+                                            <TextSearch />
                                         </kicon>
                                     </router-link>
                                 </template>
@@ -86,36 +116,6 @@
                 </template>
             </data-table>
         </div>
-
-
-        <bottom-line v-if="user && user.hasAnyAction(permission.TEMPLATE, action.CREATE)">
-            <ul>
-                <li>
-                    <div class="el-input el-input-file el-input--large custom-upload">
-                        <div class="el-input__wrapper">
-                            <label for="importTemplates">
-                                <Upload />
-                                {{ $t('import') }}
-                            </label>
-                            <input
-                                id="importTemplates"
-                                class="el-input__inner"
-                                type="file"
-                                @change="importTemplates()"
-                                ref="file"
-                            >
-                        </div>
-                    </div>
-                </li>
-                <li>
-                    <router-link :to="{name: 'templates/create'}">
-                        <el-button :icon="Plus" type="primary" size="large">
-                            {{ $t('create') }}
-                        </el-button>
-                    </router-link>
-                </li>
-            </ul>
-        </bottom-line>
     </div>
 </template>
 
@@ -133,9 +133,9 @@
     import permission from "../../models/permission";
     import action from "../../models/action";
     import NamespaceSelect from "../namespace/NamespaceSelect.vue";
-    import Eye from "vue-material-design-icons/Eye.vue";
-    import BottomLine from "../layout/BottomLine.vue";
+    import TextSearch from "vue-material-design-icons/TextSearch.vue";
     import RouteContext from "../../mixins/routeContext";
+    import TopNavBar from "../../components/layout/TopNavBar.vue";
     import DataTableActions from "../../mixins/dataTableActions";
     import DataTable from "../layout/DataTable.vue";
     import SearchField from "../layout/SearchField.vue";
@@ -149,14 +149,14 @@
     export default {
         mixins: [RouteContext, RestoreUrl, DataTableActions, SelectTableActions],
         components: {
-            BottomLine,
-            Eye,
+            TextSearch,
             DataTable,
             SearchField,
             NamespaceSelect,
             Kicon,
             MarkdownTooltip,
-            Upload
+            Upload,
+            TopNavBar
         },
         data() {
             return {

@@ -1,5 +1,42 @@
 <template>
-    <div v-if="ready">
+    <top-nav-bar :title="routeInfo.title">
+        <template #additional-right>
+            <ul>
+                <li>
+                    <div class="el-input el-input-file custom-upload">
+                        <div class="el-input__wrapper">
+                            <label for="importFlows">
+                                <Upload />
+                                {{ $t('import') }}
+                            </label>
+                            <input
+                                id="importFlows"
+                                class="el-input__inner"
+                                type="file"
+                                @change="importFlows()"
+                                ref="file"
+                            >
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <router-link :to="{name: 'flows/search'}">
+                        <el-button :icon="TextBoxSearch">
+                            {{ $t('source search') }}
+                        </el-button>
+                    </router-link>
+                </li>
+                <li>
+                    <router-link :to="{name: 'flows/create'}">
+                        <el-button :icon="Plus" type="primary">
+                            {{ $t('create') }}
+                        </el-button>
+                    </router-link>
+                </li>
+            </ul>
+        </template>
+    </top-nav-bar>
+    <div class="mt-3" v-if="ready">
         <div>
             <data-table
                 @page-changed="onPageChanged"
@@ -98,6 +135,22 @@
                                              :label="$t('namespace')"
                                              :formatter="(_, __, cellValue) => $filters.invisibleSpace(cellValue)" />
 
+                            <el-table-column prop="state.startDate"
+                                            :label="$t('last execution date')"
+                                            v-if="user.hasAny(permission.EXECUTION)">
+                                <template #default="scope">
+                                    <date-ago v-if="lastExecutionByFlowReady" :inverted="true" :date=getLastExecution(scope.row).startDate />
+                                </template>
+                            </el-table-column>
+
+                            <el-table-column prop="state.current"
+                                            :label="$t('last execution status')"
+                                            v-if="user.hasAny(permission.EXECUTION)">
+                                <template #default="scope">
+                                    <status v-if="lastExecutionByFlowReady && getLastExecution(scope.row).lastStatus" :status=getLastExecution(scope.row).lastStatus size="small" />
+                                </template>
+                            </el-table-column>
+
                             <el-table-column
                                 prop="state"
                                 :label="$t('execution statistics')"
@@ -126,7 +179,7 @@
                                     <router-link
                                         :to="{name: 'flows/update', params : {namespace: scope.row.namespace, id: scope.row.id}}">
                                         <kicon :tooltip="$t('details')" placement="left">
-                                            <eye />
+                                            <TextSearch />
                                         </kicon>
                                     </router-link>
                                 </template>
@@ -136,42 +189,6 @@
                 </template>
             </data-table>
         </div>
-
-        <bottom-line>
-            <ul>
-                <li>
-                    <div class="el-input el-input-file el-input--large custom-upload">
-                        <div class="el-input__wrapper">
-                            <label for="importFlows">
-                                <Upload />
-                                {{ $t('import') }}
-                            </label>
-                            <input
-                                id="importFlows"
-                                class="el-input__inner"
-                                type="file"
-                                @change="importFlows()"
-                                ref="file"
-                            >
-                        </div>
-                    </div>
-                </li>
-                <li>
-                    <router-link :to="{name: 'flows/search'}">
-                        <el-button :icon="TextBoxSearch" size="large">
-                            {{ $t('source search') }}
-                        </el-button>
-                    </router-link>
-                </li>
-                <li v-if="user && user.hasAnyAction(permission.FLOW, action.CREATE)">
-                    <router-link :to="{name: 'flows/create'}">
-                        <el-button :icon="Plus" type="primary" size="large">
-                            {{ $t('create') }}
-                        </el-button>
-                    </router-link>
-                </li>
-            </ul>
-        </bottom-line>
     </div>
 </template>
 
@@ -192,16 +209,18 @@
     import permission from "../../models/permission";
     import action from "../../models/action";
     import NamespaceSelect from "../namespace/NamespaceSelect.vue";
-    import Eye from "vue-material-design-icons/Eye.vue";
-    import BottomLine from "../layout/BottomLine.vue";
+    import TextSearch from "vue-material-design-icons/TextSearch.vue";
+    import TopNavBar from "../../components/layout/TopNavBar.vue";
     import RouteContext from "../../mixins/routeContext";
     import DataTableActions from "../../mixins/dataTableActions";
+    import DateAgo from "../layout/DateAgo.vue";
     import SelectTableActions from "../../mixins/selectTableActions";
     import RestoreUrl from "../../mixins/restoreUrl";
     import DataTable from "../layout/DataTable.vue";
     import SearchField from "../layout/SearchField.vue";
     import StateChart from "../stats/StateChart.vue";
     import StateGlobalChart from "../stats/StateGlobalChart.vue";
+    import Status from "../Status.vue";
     import TriggerAvatar from "./TriggerAvatar.vue";
     import MarkdownTooltip from "../layout/MarkdownTooltip.vue"
     import Kicon from "../Kicon.vue"
@@ -213,18 +232,20 @@
         mixins: [RouteContext, RestoreUrl, DataTableActions, SelectTableActions],
         components: {
             NamespaceSelect,
-            BottomLine,
-            Eye,
+            TextSearch,
             DataTable,
+            DateAgo,
             SearchField,
             StateChart,
             StateGlobalChart,
+            Status,
             TriggerAvatar,
             MarkdownTooltip,
             Kicon,
             Labels,
             Upload,
-            LabelFilter
+            LabelFilter,
+            TopNavBar
         },
         data() {
             return {
@@ -232,13 +253,14 @@
                 permission: permission,
                 action: action,
                 dailyGroupByFlowReady: false,
+                lastExecutionByFlowReady: false,
                 dailyReady: false,
                 file: undefined,
             };
         },
         computed: {
             ...mapState("flow", ["flows", "total"]),
-            ...mapState("stat", ["dailyGroupByFlow", "daily"]),
+            ...mapState("stat", ["dailyGroupByFlow", "daily", "lastExecutions"]),
             ...mapState("auth", ["user"]),
             routeInfo() {
                 return {
@@ -403,6 +425,22 @@
                     return [];
                 }
             },
+            getLastExecution(row) {
+                let noState = { state: null, startDate: null }
+                if (this.lastExecutions && this.lastExecutions.length > 0) {
+                    let filteredFlowExec = this.lastExecutions.filter((executedFlow) => executedFlow.flowId == row.id && executedFlow.namespace == row.namespace)
+                    if (filteredFlowExec.length > 0) {
+                        return {
+                            lastStatus: filteredFlowExec[0].state?.current,
+                            startDate: filteredFlowExec[0].state?.startDate
+                        }
+                    }
+                    return noState
+                }
+                else {
+                    return noState
+                }
+            },
             loadQuery(base) {
                 let queryFilter = this.queryWithFilter();
 
@@ -430,7 +468,7 @@
                     }))
                     .then(flows => {
                         this.dailyGroupByFlowReady = false;
-                        callback();
+                        this.lastExecutionByFlowReady = false;
 
                         if (flows.results && flows.results.length > 0) {
                             if (this.user && this.user.hasAny(permission.EXECUTION)) {
@@ -446,9 +484,21 @@
                                     .then(() => {
                                         this.dailyGroupByFlowReady = true
                                     })
+
+                                this.$store
+                                    .dispatch("stat/lastExecutions", {
+                                        flows: flows.results
+                                            .map(flow => {
+                                                return {namespace: flow.namespace, id: flow.id}
+                                            }),
+                                    })
+                                    .then(() => {
+                                        this.lastExecutionByFlowReady = true
+                                    })
                             }
                         }
                     })
+                    .finally(callback);
             },
             rowClasses(row) {
                 return row && row.row && row.row.disabled ? "disabled" : "";
@@ -457,3 +507,9 @@
     };
 </script>
 
+<style lang="scss" scoped>
+    :deep(nav .dropdown-menu) {
+        display: flex;
+        width: 20rem;
+    }
+</style>

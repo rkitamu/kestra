@@ -25,6 +25,7 @@
     "save": "Save",
     "saved": "Successfully saved",
     "saved done": "<em>{name}</em> is successfully saved",
+    "multiple saved done": "{name} have been saved",
     "delete": "Delete",
     "deleted": "Successfully deleted",
     "deleted confirm": "<em>{name}</em> is successfully deleted!",
@@ -72,6 +73,7 @@
     },
     "created date": "Created date",
     "updated date": "Updated date",
+    "jump to...": "Jump to...",
     "source": "Source",
     "home": "Home",
     "create": "Create",
@@ -199,13 +201,11 @@
     "download": "Download",
     "documentation": {
       "documentation": "Documentation",
-      "developer": "Developer Guide",
-      "github": "GitHub Issues"
+      "github": "Open a GitHub issue"
     },
     "blueprints": {
       "title": "Blueprints",
       "header": {
-        "welcome": "Welcome to the blueprints gallery!",
         "catch phrase": {
           "1": "The first step is always the hardest.",
           "2": "Explore blueprints to kick-start your next flow."
@@ -218,6 +218,8 @@
       "names": "Plugins",
       "please": "Please choose a task on the right to see its documentation"
     },
+    "last execution date": "Last execution date",
+    "last execution status": "Last status",
     "last X days count": "{count} in last {days} days",
     "date range count": "{count} between the {startDate} and the {endDate}",
     "date count": "{count} on the {date}",
@@ -242,7 +244,10 @@
     "Max displayable": "Max displayable",
     "Total": "Total",
     "sub flow": "Sub-flow",
-    "New execution": "New execution",
+    "execute": "Execute",
+    "execute flow behaviour": "Execute the flow",
+    "open in same tab": "In the same tab",
+    "open in new tab": "In a new tab",
     "execute the flow": "Execute the flow <code>{id}</code>",
     "execute flow now ?": "Do you want to execute this flow?",
     "Default namespace": "Default namespace",
@@ -284,6 +289,7 @@
     },
     "cancel": "Cancel",
     "homeDashboard": {
+      "title": "Dashboard",
       "today": "Today",
       "yesterday": "Yesterday",
       "last28Days": "Last 28 days",
@@ -414,6 +420,7 @@
     "get started content": "Check our documentation for a step-by-step walkthrough.",
     "watch demo": "Take a product tour",
     "watch demo content": "See the product tour video explaining key concepts.",
+    "live help": "Live help",
     "need help?": "Need help?",
     "need help? content": "Need assistance with a specific feature or flow? Our developer community is here to help.",
     "show task documentation": "Show task documentation",
@@ -439,6 +446,8 @@
     "can not have less than 1 task": "Each flow must have at least one task.",
     "task id already exists": "Task Id already exists",
     "Task Id already exist in the flow": "Task Id {taskId} already exists in the flow.",
+    "task id": "Task ID",
+    "taskid column details": "Last task being executed and its number of attempts.",
     "flow already exists": "Flow already exists",
     "namespace not allowed": "Namespace not allowed",
     "switch-view": "Switch view",
@@ -458,6 +467,7 @@
     "metric": "Metric",
     "aggregation": "Aggregation",
     "metric choice": "Please choose a metric and an aggregation",
+    "namespace choice": "Please choose a namespace to start using the editor",
     "of": "of",
     "save draft": {
       "message": "Draft saved",
@@ -477,6 +487,7 @@
     "environment name setting": "Environment name",
     "environment color setting": "Environment color",
     "slack support": "Ask any question via Slack",
+    "join community": "Join the Community",
     "error detected": "Error(s) detected",
     "warning detected": "Warning(s) detected",
     "cannot swap tasks": "Can't swap the tasks",
@@ -507,7 +518,12 @@
     "port": "Port",
     "management port": "Management port",
     "file preview truncated": "Displayed content has been truncated",
-    "show": "Show"
+    "row count": "Row count",
+    "encoding": "Encoding",
+    "show": "Show",
+    "advanced configuration": "Advanced configuration",
+    "all executions": "All executions",
+    "trigger execution id": "Parent Id"
   },
   "fr": {
     "id": "Identifiant",
@@ -535,6 +551,7 @@
     "save": "Enregistrer",
     "saved": "Enregistrement réussi",
     "saved done": "<em>{name}</em> est enregistré avec succès",
+    "multiple saved done": "{name} ont été enregistré(e)s",
     "delete": "Effacer",
     "deleted": "Effacement réussi",
     "deleted confirm": "<em>{name}</em> est effacé !",
@@ -582,6 +599,7 @@
     },
     "created date": "Date de création",
     "updated date": "Date de mise à jour",
+    "jump to...": "Aller à...",
     "source": "Source",
     "home": "Accueil",
     "create": "Créer",
@@ -630,7 +648,7 @@
     "prefill inputs": "Pré-remplir",
     "current": "actuel",
     "change status": "Changer le statut",
-    "change status done": "Le statut de la tâche a était mis à jour",
+    "change status done": "Le statut de la tâche a été mis à jour",
     "change status confirm": "Êtes-vous sur de vouloir changer le statut de la tâche <code>{task}</code> pour l'exécution <code>{id}</code> ?",
     "change status hint": {
       "WARNING": [
@@ -710,14 +728,11 @@
     "download": "Télécharger",
     "documentation": {
       "documentation": "Documentation",
-      "examples": "Examples de Flow",
-      "developer": "Guide développeur",
       "github": "Bugs GitHub"
     },
     "blueprints": {
       "title": "Blueprints",
       "header": {
-        "welcome": "Bienvenue dans la galerie de blueprints !",
         "catch phrase": {
           "1": "La première étape est toujours la plus difficile.",
           "2": "Explorez les blueprints pour créer rapidement vos flows."
@@ -731,6 +746,8 @@
       "please": "Veuillez choisir une tache sur la droite afin de voir sa documentation"
     },
     "last X days count": "{count} lors des {days} derniers jours",
+    "last execution date": "Dernière execution",
+    "last execution status": "Dernier statut",
     "date range count": "{count} entre le {startDate} et le {endDate}",
     "date count": "{count} le {date}",
     "revisions": "Révisions",
@@ -754,7 +771,10 @@
     "Max displayable": "Max affichables",
     "Total": "Total",
     "sub flow": "Sous-flow",
-    "New execution": "Nouvelle execution",
+    "execute": "Exécuter",
+    "execute flow behaviour": "Exécuter le flow",
+    "open in same tab": "Dans le même onglet",
+    "open in new tab": "Dans un nouvel onglet",
     "execute the flow": "Exécuter le flow <code>{id}</code>",
     "execute flow now ?": "Voulez-vous exécuter ce flow ?",
     "Default namespace": "Espace de nom par défaut",
@@ -795,6 +815,7 @@
     },
     "cancel": "Annuler",
     "homeDashboard": {
+      "title": "Tableau de bord",
       "today": "Aujourd'hui",
       "yesterday": "Hier",
       "last28Days": "Dernier 28 jours",
@@ -918,6 +939,7 @@
     "get started content": "Prêt à faire le grand saut? Jetez un oeil à notre documentation pour un guide étape par étape.",
     "watch demo": "Voir notre démo",
     "watch demo content": "Obtenez un aperçu de la puissance de Kestra grâce à notre vidéo de démonstration.",
+    "live help": "Aide en direct",
     "need help?": "Besoin d'aide?",
     "need help? content": "Besoin d'assistance pour une fonctionnalité ou un flow? Notre communauté d'ingénieurs data et de développeurs sont là pour aider.",
     "show task documentation": "Afficher la documentation des tâches",
@@ -943,6 +965,8 @@
     "can not have less than 1 task": "Un flow ne peut avoir moins d'1 tâche.",
     "task id already exists": "Identifiant de tâche déjà utilisé",
     "Task Id already exist in the flow": "L'identifiant {taskId} est déjà utilisé dans le flow.",
+    "task id": "ID de tâche",
+    "taskid column details": "ID de la dernière tâche exécuté ainsi que son nombre de tentatives.",
     "flow already exists": "Flow déjà existant",
     "namespace not allowed": "Espace de nom non autorisé",
     "switch-view": "Changer de vue",
@@ -979,6 +1003,7 @@
     "collapse": "Masquer",
     "log expand setting": "Affichage par défaut des journaux",
     "slack support": "Demandez de l'aide sur notre Slack",
+    "join community": "Rejoignez la communauté",
     "error detected": "Erreur(s) détectée(s)",
     "warning detected": "Avertissement(s) détecté(s)",
     "cannot swap tasks": "Impossible de permuter les tâches",
@@ -1009,7 +1034,12 @@
     "port": "Port",
     "management port": "Port de gestion",
     "file preview truncated": "Displayed content has been truncated",
-    "show": "Voir"
+    "show": "Afficher",
+    "advanced configuration": "Configuration avancée",
+    "row count": "Nombre de lignes",
+    "encoding": "Encodage",
+    "all executions": "Toutes les exécutions",
+    "trigger execution id": "Id parent"
   }
 }
 

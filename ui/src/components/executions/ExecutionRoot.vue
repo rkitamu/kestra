@@ -1,36 +1,34 @@
 <template>
-    <div>
-        <div v-if="ready">
-            <tabs :route-name="$route.params && $route.params.id ? 'executions/update': ''" @follow="follow" :tabs="tabs" />
-        </div>
-        <bottom-line v-if="canDelete || isAllowedTrigger || isAllowedEdit">
+    <top-nav-bar :title="routeInfo?.title" :breadcrumb="routeInfo?.breadcrumb">
+        <template #additional-right v-if="canDelete || isAllowedTrigger || isAllowedEdit">
             <ul>
-                <li>
+                <li v-if="isAllowedEdit">
                     <a :href="`${finalApiUrl}/executions/${execution.id}`" target="_blank">
-                        <el-button :icon="Api" size="large" type="default">
+                        <el-button :icon="Api">
                             {{ $t('api') }}
                         </el-button>
                     </a>
                 </li>
-                <li>
-                    <el-button :icon="Delete" size="large" type="default" v-if="canDelete" @click="deleteExecution">
+                <li v-if="canDelete">
+                    <el-button :icon="Delete" @click="deleteExecution">
                         {{ $t('delete') }}
                     </el-button>
                 </li>
-                <li>
-                    <template v-if="isAllowedTrigger">
-                        <trigger-flow type="default" :flow-id="$route.params.flowId" :namespace="$route.params.namespace" />
-                    </template>
+                <li v-if="isAllowedEdit">
+                    <el-button :icon="Pencil" @click="editFlow">
+                        {{ $t("edit flow") }}
+                    </el-button>
                 </li>
-                <li>
-                    <template v-if="isAllowedEdit">
-                        <el-button :icon="Pencil" type="default" size="large" @click="editFlow">
-                            {{ $t('edit flow') }}
-                        </el-button>
-                    </template>
+                <li v-if="isAllowedTrigger">
+                    <trigger-flow type="primary" :flow-id="$route.params.flowId" :namespace="$route.params.namespace" />
                 </li>
             </ul>
-        </bottom-line>
+        </template>
+    </top-nav-bar>
+    <div class="mt-3">
+        <div v-if="ready">
+            <tabs :route-name="$route.params && $route.params.id ? 'executions/update': ''" @follow="follow" :tabs="tabs" />
+        </div>
     </div>
 </template>
 
@@ -46,9 +44,9 @@
     import Logs from "./Logs.vue";
     import Topology from "./Topology.vue";
     import ExecutionOutput from "./ExecutionOutput.vue";
-    import BottomLine from "../layout/BottomLine.vue";
     import TriggerFlow from "../flows/TriggerFlow.vue";
     import RouteContext from "../../mixins/routeContext";
+    import TopNavBar from "../../components/layout/TopNavBar.vue";
     import {mapState} from "vuex";
     import permission from "../../models/permission";
     import action from "../../models/action";
@@ -61,9 +59,9 @@
     export default {
         mixins: [RouteContext],
         components: {
-            BottomLine,
             TriggerFlow,
             Tabs,
+            TopNavBar
         },
         data() {
             return {

@@ -34,6 +34,7 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.exceptions.HttpStatusException;
 import io.micronaut.http.multipart.CompletedFileUpload;
+import io.micronaut.http.server.exceptions.InternalServerException;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.validation.Validated;
@@ -42,6 +43,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.inject.Inject;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.validation.ConstraintViolationException;
 import javax.validation.Valid;
@@ -59,6 +61,7 @@ import static io.kestra.core.utils.Rethrow.throwFunction;
 
 @Validated
 @Controller("/api/v1/flows")
+@Slf4j
 public class FlowController {
     @Inject
     private FlowRepositoryInterface flowRepository;
@@ -203,6 +206,14 @@ public class FlowController {
         ));
     }
 
+    @ExecuteOn(TaskExecutors.IO)
+    @Get(uri = "/{namespace}", produces = MediaType.TEXT_JSON)
+    @Operation(tags = {"Flows"}, summary = "Retrieve all flows from a given namespace")
+    public List<Flow> getFlowsByNamespace(
+        @Parameter(description = "Namespace to filter flows") @PathVariable String namespace
+    ) throws HttpStatusException {
+        return flowRepository.findByNamespace(tenantService.resolveTenant(), namespace);
+    }
 
     @ExecuteOn(TaskExecutors.IO)
     @Get(uri = "/source", produces = MediaType.TEXT_JSON)
@@ -496,6 +507,12 @@ public class FlowController {
                     modelValidator.validate(taskDefaultService.injectDefaults(flowParse));
                 } catch (ConstraintViolationException e) {
                     validateConstraintViolationBuilder.constraints(e.getMessage());
+                } catch (RuntimeException re) {
+                    // In case of any error, we add a validation violation so the error is displayed in the UI.
+                    // We may change that by throwing an internal error and handle it in the UI, but this should not occur except for rare cases
+                    // in dev like incompatible plugin versions.
+                    log.error("Unable to validate the flow", re);
+                    validateConstraintViolationBuilder.constraints("Unable to validate the flow: " + re.getMessage());
                 }
 
                 return validateConstraintViolationBuilder.build();
@@ -522,6 +539,12 @@ public class FlowController {
             }
         } catch (ConstraintViolationException e) {
             validateConstraintViolationBuilder.constraints(e.getMessage());
+        } catch (RuntimeException re) {
+            // In case of any error, we add a validation violation so the error is displayed in the UI.
+            // We may change that by throwing an internal error and handle it in the UI, but this should not occur except for rare cases
+            // in dev like incompatible plugin versions.
+            log.error("Unable to validate the flow", re);
+            validateConstraintViolationBuilder.constraints("Unable to validate the flow: " + re.getMessage());
         }
         return validateConstraintViolationBuilder.build();
     }

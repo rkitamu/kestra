@@ -5,7 +5,7 @@ import FlowRoot from "../components/flows/FlowRoot.vue"
 import Flows from "../components/flows/Flows.vue"
 import LogsWrapper from "../components/logs/LogsWrapper.vue"
 import Plugin from "../components/plugins/Plugin.vue"
-import Settings from "../components/settings/Settings.vue"
+import Settings from "override/components/settings/Settings.vue"
 import TemplateEdit from "../components/templates/TemplateEdit.vue"
 import Templates from "../components/templates/Templates.vue"
 import FlowsSearch from "../components/flows/FlowsSearch.vue";
@@ -18,12 +18,19 @@ import Blueprints from "override/components/flows/blueprints/Blueprints.vue";
 import BlueprintDetail from "../components/flows/blueprints/BlueprintDetail.vue";
 import Triggers from "../components/admin/Triggers.vue";
 import Workers from "../components/admin/Workers.vue";
+import Editor from "../components/namespace/Editor.vue";
 
 
 export default [
     //Flows
-    {name: "home", path: "/", component: Home},
-    {name: "welcome", path: "/welcome", component: Welcome},
+    {name: "root", path: '/', redirect: {name: 'home'}},
+    {name: "home", path: "/:tenant?/dashboard", component: Home},
+    {name: "welcome", path: "/:tenant?/welcome", component: Welcome},
+
+    //Namespace file editor
+    {name: "editor", path: "/:tenant?/editor/:namespace?", component: Editor},
+
+    //Flows
     {name: "flows/list", path: "/:tenant?/flows", component: Flows},
     {name: "flows/search", path: "/:tenant?/flows/search", component: FlowsSearch},
     {name: "flows/create", path: "/:tenant?/flows/new", component: FlowCreate},
@@ -42,8 +49,8 @@ export default [
     {name: "blueprints/view", path: "/:tenant?/blueprints/:blueprintId", component: BlueprintDetail, props: true},
 
     //Documentation
-    {name: "plugins/list", path: "/plugins", component: Plugin},
-    {name: "plugins/view", path: "/plugins/:cls", component: Plugin},
+    {name: "plugins/list", path: "/:tenant?/plugins", component: Plugin},
+    {name: "plugins/view", path: "/:tenant?/plugins/:cls", component: Plugin},
 
     //Templates
     {name: "templates/list", path: "/:tenant?/templates", component: Templates},
@@ -54,7 +61,7 @@ export default [
     {name: "logs/list", path: "/:tenant?/logs", component: LogsWrapper},
 
     //Settings
-    {name: "settings", path: "/settings", component: Settings},
+    {name: "settings", path: "/:tenant?/settings", component: Settings},
 
     //Admin
     {name: "admin/triggers", path: "/:tenant?/admin/triggers", component: Triggers},

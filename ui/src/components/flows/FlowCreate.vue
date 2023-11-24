@@ -1,5 +1,6 @@
 <template>
-    <div>
+    <top-nav-bar :title="routeInfo.title" />
+    <div class="mt-3">
         <editor-view
             :flow-id="defaultFlowTemplate.id"
             :namespace="defaultFlowTemplate.namespace"
@@ -20,11 +21,13 @@
     import EditorView from "../inputs/EditorView.vue";
     import {mapGetters, mapState} from "vuex";
     import RouteContext from "../../mixins/routeContext";
+    import TopNavBar from "../../components/layout/TopNavBar.vue";
 
     export default {
         mixins: [RouteContext],
         components: {
-            EditorView
+            EditorView,
+            TopNavBar
         },
         beforeUnmount() {
             this.$store.commit("flow/setFlowError", undefined);
@@ -40,7 +43,7 @@
                 }
 
                 return `id: hello-world
-namespace: dev
+namespace: company.team
 tasks:
   - id: hello
     type: io.kestra.core.tasks.log.Log

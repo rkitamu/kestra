@@ -305,7 +305,7 @@
                         }),
                     },
                     {
-                        target: ".edit-flow-trigger-button",
+                        target: ".trigger-flow-guided-step",
                         header: {
                             title: this.$t("onboarding-content.step12.title"),
                         },
@@ -343,7 +343,7 @@
                     "# " + this.$t("onboarding-flow.onboardComment1") + "\n" +
                     "# " + this.$t("onboarding-flow.onboardComment2") + "\n" +
                     "id: welcome" + "\n" +
-                    "namespace: dev\n" +
+                    "namespace: company.team\n" +
                     "description: Welcome to Kestra!",
                     "\n# " + this.$t("onboarding-flow.inputs") + "\n" +
                     "inputs:" + "\n" +

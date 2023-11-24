@@ -1,5 +1,6 @@
 <template>
-    <div v-if="ready">
+    <top-nav-bar :title="routeInfo.title" />
+    <div class="mt-3" v-if="ready">
         <data-table @page-changed="onPageChanged" ref="dataTable" :total="total" :max="maxTaskRunSetting">
             <template #navbar>
                 <el-form-item>
@@ -62,7 +63,7 @@
                 >
                     <el-table-column prop="executionId" :label="$t('execution')">
                         <template #default="scope">
-                            <id :value="scope.row.executionId" :shrink="true" />
+                            <id :value="scope.row.executionId" :shrink="true" @click="onRowDoubleClick(scope.row)" />
                         </template>
                     </el-table-column>
 
@@ -123,7 +124,7 @@
                         <template #default="scope">
                             <router-link :to="{name: 'executions/update', params: {namespace: scope.row.namespace, flowId: scope.row.flowId, id: scope.row.executionId}}">
                                 <kicon :tooltip="$t('details')" placement="left">
-                                    <eye />
+                                    <TextSearch />
                                 </kicon>
                             </router-link>
                         </template>
@@ -139,9 +140,10 @@
 <script>
     import {mapState} from "vuex";
     import DataTable from "../layout/DataTable.vue";
-    import Eye from "vue-material-design-icons/Eye.vue";
+    import TextSearch from "vue-material-design-icons/TextSearch.vue";
     import Status from "../Status.vue";
     import RouteContext from "../../mixins/routeContext";
+    import TopNavBar from "../../components/layout/TopNavBar.vue";
     import DataTableActions from "../../mixins/dataTableActions";
     import SearchField from "../layout/SearchField.vue";
     import NamespaceSelect from "../namespace/NamespaceSelect.vue";
@@ -162,7 +164,7 @@
         mixins: [RouteContext, RestoreUrl, DataTableActions],
         components: {
             Status,
-            Eye,
+            TextSearch,
             DataTable,
             SearchField,
             NamespaceSelect,
@@ -173,7 +175,8 @@
             DateAgo,
             Kicon,
             Id,
-            LabelFilter
+            LabelFilter,
+            TopNavBar
         },
         data() {
             return {

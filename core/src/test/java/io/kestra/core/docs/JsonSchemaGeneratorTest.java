@@ -17,6 +17,7 @@ import io.kestra.core.tasks.flows.Dag;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.inject.Inject;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -80,10 +81,10 @@ class JsonSchemaGeneratorTest {
             var bash = definitions.get("io.kestra.core.tasks.log.Log-1");
             assertThat((List<String>) bash.get("required"), not(contains("level")));
             assertThat((String) ((Map<String, Map<String, Object>>) bash.get("properties")).get("level").get("markdownDescription"), containsString("Default value is : `INFO`"));
-            assertThat(((String) ((Map<String, Map<String, Object>>) bash.get("properties")).get("message").get("markdownDescription")).startsWith("Can be a string"), is(true));
+            assertThat(((String) ((Map<String, Map<String, Object>>) bash.get("properties")).get("message").get("markdownDescription")).contains("can be a string"), is(true));
             assertThat(((Map<String, Map<String, Object>>) bash.get("properties")).get("type").containsKey("pattern"), is(false));
             assertThat((String) bash.get("markdownDescription"), containsString("##### Examples"));
-            assertThat((String) bash.get("markdownDescription"), containsString("level: WARN"));
+            assertThat((String) bash.get("markdownDescription"), containsString("level: DEBUG"));
 
             var bashType = definitions.get("io.kestra.core.tasks.log.Log-2");
             assertThat(bashType, is(notNullValue()));
@@ -185,7 +186,8 @@ class JsonSchemaGeneratorTest {
         Map<String, Object> generate = jsonSchemaGenerator.properties(Task.class, TaskWithEnum.class);
         System.out.println(generate);
         assertThat(generate, is(not(nullValue())));
-        assertThat(((Map<String, Map<String, Object>>) generate.get("properties")).size(), is(3));
+        assertThat(((Map<String, Map<String, Object>>) generate.get("properties")).size(), is(4));
+        assertThat(((Map<String, Map<String, Object>>) generate.get("properties")).get("stringWithDefault").get("default"), is("default"));
     }
 
     @SuppressWarnings("unchecked")
@@ -198,7 +200,7 @@ class JsonSchemaGeneratorTest {
     @EqualsAndHashCode
     @Getter
     @NoArgsConstructor
-    private static class TaskWithEnum extends Task implements RunnableTask<VoidOutput>  {
+    private static class TaskWithEnum extends ParentClass implements RunnableTask<VoidOutput>  {
 
         @PluginProperty
         @Schema(title = "Title from the attribute")
@@ -230,5 +232,16 @@ class JsonSchemaGeneratorTest {
             @Schema(title = "Test property")
             public String testProperty;
         }
+    }
+
+    @SuperBuilder
+    @ToString
+    @EqualsAndHashCode
+    @Getter
+    @NoArgsConstructor
+    private static abstract class ParentClass extends Task {
+        @PluginProperty
+        @Builder.Default
+        private String stringWithDefault = "default";
     }
 }

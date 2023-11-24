@@ -1,6 +1,7 @@
 package io.kestra.core.tasks.flows;
 
 import com.google.common.collect.ImmutableMap;
+import io.kestra.core.exceptions.InternalException;
 import io.kestra.core.models.executions.Execution;
 import io.kestra.core.models.flows.State;
 import io.kestra.core.runners.AbstractMemoryRunnerTest;
@@ -10,9 +11,11 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -41,6 +44,21 @@ public class WorkingDirectoryTest extends AbstractMemoryRunnerTest {
     @Test
     void cache() throws TimeoutException, IOException {
         suite.cache(runnerUtils);
+    }
+
+    @Test
+    void taskrun() throws TimeoutException, InternalException {
+        suite.taskRun(runnerUtils);
+    }
+
+    @Test
+    void taskrunNested() throws TimeoutException, InternalException {
+        suite.taskRunNested(runnerUtils);
+    }
+
+    @Test
+    void namespaceFiles() throws TimeoutException, InternalException, IOException {
+        suite.namespaceFiles(runnerUtils);
     }
 
     @Singleton
@@ -92,6 +110,46 @@ public class WorkingDirectoryTest extends AbstractMemoryRunnerTest {
 
             assertThat(execution.getTaskRunList(), hasSize(2));
             assertThat(execution.getState().getCurrent(), is(State.Type.FAILED));
+        }
+
+        public void taskRun(RunnerUtils runnerUtils) throws TimeoutException, InternalException {
+            Execution execution = runnerUtils.runOne(null, "io.kestra.tests", "working-directory-taskrun");
+
+            assertThat(execution.getTaskRunList(), hasSize(3));
+            assertThat(execution.getState().getCurrent(), is(State.Type.SUCCESS));
+            assertThat(((String) execution.findTaskRunByTaskIdAndValue("log-taskrun", List.of("1")).getOutputs().get("value")), containsString("1"));
+        }
+
+        public void taskRunNested(RunnerUtils runnerUtils) throws TimeoutException, InternalException {
+            Execution execution = runnerUtils.runOne(null, "io.kestra.tests", "working-directory-taskrun-nested");
+
+            assertThat(execution.getTaskRunList(), hasSize(6));
+            assertThat(execution.getState().getCurrent(), is(State.Type.SUCCESS));
+            assertThat(((String) execution.findTaskRunByTaskIdAndValue("log-workerparent", List.of("1")).getOutputs().get("value")), containsString("{\"taskrun\":{\"value\":\"1\"}}"));
+        }
+
+        public void namespaceFiles(RunnerUtils runnerUtils) throws TimeoutException, InternalException, IOException {
+            put("/test/a/b/c/1.txt", "first");
+            put("/a/b/c/2.txt", "second");
+            put("/a/b/3.txt", "third");
+            put("/ignore/4.txt", "4th");
+
+            Execution execution = runnerUtils.runOne(null, "io.kestra.tests", "working-directory-namespace-files");
+
+            assertThat(execution.getTaskRunList(), hasSize(6));
+            assertThat(execution.getState().getCurrent(), is(State.Type.WARNING));
+            assertThat(execution.findTaskRunsByTaskId("t4").get(0).getState().getCurrent(), is(State.Type.FAILED));
+            assertThat(execution.findTaskRunsByTaskId("t1").get(0).getOutputs().get("value"), is("first"));
+            assertThat(execution.findTaskRunsByTaskId("t2").get(0).getOutputs().get("value"), is("second"));
+            assertThat(execution.findTaskRunsByTaskId("t3").get(0).getOutputs().get("value"), is("third"));
+        }
+
+        private void put(String path, String content) throws IOException {
+            storageInterface.put(
+                null,
+                URI.create(storageInterface.namespaceFilePrefix("io.kestra.tests")  + path),
+                new ByteArrayInputStream(content.getBytes())
+            );
         }
     }
 }

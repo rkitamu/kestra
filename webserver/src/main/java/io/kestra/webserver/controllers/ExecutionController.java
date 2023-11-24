@@ -73,6 +73,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.Charset;
+import java.nio.charset.IllegalCharsetNameException;
+import java.nio.charset.UnsupportedCharsetException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -142,7 +145,8 @@ public class ExecutionController {
         @Parameter(description = "The start datetime") @Nullable @Format("yyyy-MM-dd'T'HH:mm[:ss][.SSS][XXX]") @QueryValue ZonedDateTime startDate,
         @Parameter(description = "The end datetime") @Nullable @Format("yyyy-MM-dd'T'HH:mm[:ss][.SSS][XXX]") @QueryValue ZonedDateTime endDate,
         @Parameter(description = "A state filter") @Nullable @QueryValue List<State.Type> state,
-        @Parameter(description = "A labels filter as a list of 'key:value'") @Nullable @QueryValue List<String> labels
+        @Parameter(description = "A labels filter as a list of 'key:value'") @Nullable @QueryValue List<String> labels,
+        @Parameter(description = "The trigger execution id") @Nullable @QueryValue String triggerExecutionId
     ) {
         return PagedResults.of(executionRepository.find(
             PageableUtils.from(page, size, sort, executionRepository.sortMapping()),
@@ -153,7 +157,8 @@ public class ExecutionController {
             startDate,
             endDate,
             state,
-            RequestUtils.toMap(labels)
+            RequestUtils.toMap(labels),
+            triggerExecutionId
         ));
     }
 
@@ -301,7 +306,8 @@ public class ExecutionController {
         @Parameter(description = "The start datetime") @Nullable @Format("yyyy-MM-dd'T'HH:mm[:ss][.SSS][XXX]") @QueryValue ZonedDateTime startDate,
         @Parameter(description = "The end datetime") @Nullable @Format("yyyy-MM-dd'T'HH:mm[:ss][.SSS][XXX]") @QueryValue ZonedDateTime endDate,
         @Parameter(description = "A state filter") @Nullable @QueryValue List<State.Type> state,
-        @Parameter(description = "A labels filter as a list of 'key:value'") @Nullable @QueryValue List<String> labels
+        @Parameter(description = "A labels filter as a list of 'key:value'") @Nullable @QueryValue List<String> labels,
+        @Parameter(description = "The trigger execution id") @Nullable @QueryValue String triggerExecutionId
     ) {
         Integer count = executionRepository
             .find(
@@ -312,7 +318,8 @@ public class ExecutionController {
                 startDate,
                 endDate,
                 state,
-                RequestUtils.toMap(labels)
+                RequestUtils.toMap(labels),
+                triggerExecutionId
             )
             .map(e -> {
                 executionRepository.delete(e);
@@ -343,7 +350,7 @@ public class ExecutionController {
     @ExecuteOn(TaskExecutors.IO)
     @Post(uri = "/webhook/{namespace}/{id}/{key}", produces = MediaType.TEXT_JSON)
     @Operation(tags = {"Executions"}, summary = "Trigger a new execution by POST webhook trigger")
-    public Execution webhookTriggerPost(
+    public HttpResponse<Execution> webhookTriggerPost(
         @Parameter(description = "The flow namespace") @PathVariable String namespace,
         @Parameter(description = "The flow id") @PathVariable String id,
         @Parameter(description = "The webhook trigger uid") @PathVariable String key,
@@ -355,7 +362,7 @@ public class ExecutionController {
     @ExecuteOn(TaskExecutors.IO)
     @Get(uri = "/webhook/{namespace}/{id}/{key}", produces = MediaType.TEXT_JSON)
     @Operation(tags = {"Executions"}, summary = "Trigger a new execution by GET webhook trigger")
-    public Execution webhookTriggerGet(
+    public HttpResponse<Execution> webhookTriggerGet(
         @Parameter(description = "The flow namespace") @PathVariable String namespace,
         @Parameter(description = "The flow id") @PathVariable String id,
         @Parameter(description = "The webhook trigger uid") @PathVariable String key,
@@ -367,7 +374,7 @@ public class ExecutionController {
     @ExecuteOn(TaskExecutors.IO)
     @Put(uri = "/webhook/{namespace}/{id}/{key}", produces = MediaType.TEXT_JSON)
     @Operation(tags = {"Executions"}, summary = "Trigger a new execution by PUT webhook trigger")
-    public Execution webhookTriggerPut(
+    public HttpResponse<Execution> webhookTriggerPut(
         @Parameter(description = "The flow namespace") @PathVariable String namespace,
         @Parameter(description = "The flow id") @PathVariable String id,
         @Parameter(description = "The webhook trigger uid") @PathVariable String key,
@@ -376,18 +383,26 @@ public class ExecutionController {
         return this.webhook(namespace, id, key, request);
     }
 
-    private Execution webhook(
+    private HttpResponse<Execution> webhook(
         String namespace,
         String id,
         String key,
         HttpRequest<String> request
     ) {
         Optional<Flow> find = flowRepository.findById(tenantService.resolveTenant(), namespace, id);
-        if (find.isEmpty()) {
-            return null;
+        return webhook(find, key, request);
+    }
+
+    protected HttpResponse<Execution> webhook(
+        Optional<Flow> maybeFlow,
+        String key,
+        HttpRequest<String> request
+    ) {
+        if (maybeFlow.isEmpty()) {
+            return HttpResponse.notFound();
         }
 
-        var flow = find.get();
+        var flow = maybeFlow.get();
         if (flow.isDisabled()) {
             throw new IllegalStateException("Cannot execute disabled flow");
         }
@@ -414,23 +429,30 @@ public class ExecutionController {
             .findFirst();
 
         if (webhook.isEmpty()) {
-            return null;
+            return HttpResponse.notFound();
         }
 
         Optional<Execution> execution = webhook.get().evaluate(request, flow);
 
         if (execution.isEmpty()) {
-            return null;
+            return HttpResponse.notFound();
         }
 
         var result = execution.get();
         if (flow.getLabels() != null) {
             result = result.withLabels(flow.getLabels());
         }
+
+        // we check conditions here as it's easier as the execution is created we have the body and headers available for the runContext
+        var conditionContext = conditionService.conditionContext(runContextFactory.of(flow, result), flow, result);
+        if (!conditionService.isValid(flow, webhook.get(), conditionContext)) {
+            return HttpResponse.noContent();
+        }
+
         executionQueue.emit(result);
         eventPublisher.publishEvent(new CrudEvent<>(result, CrudEventType.CREATE));
 
-        return result;
+        return HttpResponse.ok(result);
     }
 
     @ExecuteOn(TaskExecutors.IO)
@@ -671,7 +693,8 @@ public class ExecutionController {
         @Parameter(description = "The start datetime") @Nullable @Format("yyyy-MM-dd'T'HH:mm[:ss][.SSS][XXX]") @QueryValue ZonedDateTime startDate,
         @Parameter(description = "The end datetime") @Nullable @Format("yyyy-MM-dd'T'HH:mm[:ss][.SSS][XXX]") @QueryValue ZonedDateTime endDate,
         @Parameter(description = "A state filter") @Nullable @QueryValue List<State.Type> state,
-        @Parameter(description = "A labels filter as a list of 'key:value'") @Nullable @QueryValue List<String> labels
+        @Parameter(description = "A labels filter as a list of 'key:value'") @Nullable @QueryValue List<String> labels,
+        @Parameter(description = "The trigger execution id") @Nullable @QueryValue String triggerExecutionId
     ) {
         Integer count = executionRepository
             .find(
@@ -682,7 +705,8 @@ public class ExecutionController {
                 startDate,
                 endDate,
                 state,
-                RequestUtils.toMap(labels)
+                RequestUtils.toMap(labels),
+                triggerExecutionId
             )
             .map(e -> {
                 Execution restart = executionService.restart(e, null);
@@ -892,7 +916,8 @@ public class ExecutionController {
         @Parameter(description = "The start datetime") @Nullable @Format("yyyy-MM-dd'T'HH:mm[:ss][.SSS][XXX]") @QueryValue ZonedDateTime startDate,
         @Parameter(description = "The end datetime") @Nullable @Format("yyyy-MM-dd'T'HH:mm[:ss][.SSS][XXX]") @QueryValue ZonedDateTime endDate,
         @Parameter(description = "A state filter") @Nullable @QueryValue List<State.Type> state,
-        @Parameter(description = "A labels filter as a list of 'key:value'") @Nullable @QueryValue List<String> labels
+        @Parameter(description = "A labels filter as a list of 'key:value'") @Nullable @QueryValue List<String> labels,
+        @Parameter(description = "The trigger execution id") @Nullable @QueryValue String triggerExecutionId
     ) {
         var ids = executionRepository
             .find(
@@ -903,7 +928,8 @@ public class ExecutionController {
                 startDate,
                 endDate,
                 state,
-                RequestUtils.toMap(labels)
+                RequestUtils.toMap(labels),
+                triggerExecutionId
             )
             .map(execution -> execution.getId())
             .toList()
@@ -982,19 +1008,29 @@ public class ExecutionController {
     public HttpResponse<?> filePreview(
         @Parameter(description = "The execution id") @PathVariable String executionId,
         @Parameter(description = "The internal storage uri") @QueryValue URI path,
-        @Parameter(description = "The max row returns") @QueryValue @Nullable Integer maxRows
+        @Parameter(description = "The max row returns") @QueryValue @Nullable Integer maxRows,
+        @Parameter(description = "The file encoding as Java charset name. Defaults to UTF-8", example = "ISO-8859-1") @QueryValue(defaultValue = "UTF-8") String encoding
     ) throws IOException {
         this.validateFile(executionId, path, "/api/v1/executions/{executionId}/file?path=" + path);
 
         String extension = FilenameUtils.getExtension(path.toString());
-        InputStream fileStream = storageInterface.get(tenantService.resolveTenant(), path);
+        Optional<Charset> charset;
 
-        FileRender fileRender = FileRenderBuilder.of(
-            extension,
-            fileStream,
-            maxRows == null ? this.initialPreviewRows : (maxRows > this.maxPreviewRows ? this.maxPreviewRows : maxRows)
-        );
+        try {
+            charset = Optional.ofNullable(encoding).map(Charset::forName);
+        } catch (IllegalCharsetNameException | UnsupportedCharsetException e) {
+            throw new IllegalArgumentException("Unable to preview using encoding '" + encoding + "'");
+        }
 
-        return HttpResponse.ok(fileRender);
+        try (InputStream fileStream = storageInterface.get(tenantService.resolveTenant(), path)){
+            FileRender fileRender = FileRenderBuilder.of(
+                extension,
+                fileStream,
+                charset,
+                maxRows == null ? this.initialPreviewRows : (maxRows > this.maxPreviewRows ? this.maxPreviewRows : maxRows)
+            );
+
+            return HttpResponse.ok(fileRender);
+        }
     }
 }

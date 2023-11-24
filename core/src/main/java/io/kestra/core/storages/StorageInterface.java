@@ -30,33 +30,53 @@ public interface StorageInterface {
     @Retryable(includes = {IOException.class}, excludes = {FileNotFoundException.class})
     InputStream get(String tenantId, URI uri) throws IOException;
 
+    @Retryable(includes = {IOException.class}, excludes = {FileNotFoundException.class})
+    List<FileAttributes> list(String tenantId, URI uri) throws IOException;
+
+
     /**
      * Whether the uri points to a file/object that exist in the internal storage.
      *
-     * @param uri the URI of the file/object in the internal storage.
+     * @param uri      the URI of the file/object in the internal storage.
      * @param tenantId the tenant identifier.
      * @return true if the uri points to a file/object that exist in the internal storage.
      */
     default boolean exists(String tenantId, URI uri) {
-        try {
-            get(tenantId, uri);
+        try (InputStream ignored = get(tenantId, uri)){
             return true;
         } catch (IOException ieo) {
             return false;
         }
     }
 
+    /**
+     * @deprecated Use {@link #getAttributes(String, URI)}} instead of individual call for every attribute
+     */
+    @Deprecated
     @Retryable(includes = {IOException.class}, excludes = {FileNotFoundException.class})
     Long size(String tenantId, URI uri) throws IOException;
 
+    /**
+     * @deprecated Use {@link #getAttributes(String, URI)} instead of individual call for every attribute
+     */
+    @Deprecated
     @Retryable(includes = {IOException.class}, excludes = {FileNotFoundException.class})
     Long lastModifiedTime(String tenantId, URI uri) throws IOException;
+
+    @Retryable(includes = {IOException.class}, excludes = {FileNotFoundException.class})
+    FileAttributes getAttributes(String tenantId, URI uri) throws IOException;
 
     @Retryable(includes = {IOException.class})
     URI put(String tenantId, URI uri, InputStream data) throws IOException;
 
     @Retryable(includes = {IOException.class})
     boolean delete(String tenantId, URI uri) throws IOException;
+
+    @Retryable(includes = {IOException.class})
+    URI createDirectory(String tenantId, URI uri) throws IOException;
+
+    @Retryable(includes = {IOException.class}, excludes = {FileNotFoundException.class})
+    URI move(String tenantId, URI from, URI to) throws IOException;
 
     @Retryable(includes = {IOException.class})
     List<URI> deleteByPrefix(String tenantId, URI storagePrefix) throws IOException;
@@ -97,7 +117,7 @@ public interface StorageInterface {
             )
         );
 
-        if(flowId != null) {
+        if (flowId != null) {
             paths.add(Slugify.of(flowId));
         }
 
@@ -141,6 +161,13 @@ public interface StorageInterface {
         return String.join("/", paths);
     }
 
+    default String namespaceFilePrefix(String namespace) {
+        return fromParts(
+            namespace.replace(".", "/"),
+            "_files"
+        );
+    }
+
     default Optional<String> extractExecutionId(URI path) {
         Pattern pattern = Pattern.compile("^/(.+)/executions/([^/]+)/", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(path.getPath());
@@ -179,7 +206,7 @@ public interface StorageInterface {
         return this.from(flow, execution, input.getName(), file);
     }
 
-    default URI outputPrefix(Flow flow)  {
+    default URI outputPrefix(Flow flow) {
         try {
             return new URI("//" + fromParts(
                 flow.getNamespace().replace(".", "/"),

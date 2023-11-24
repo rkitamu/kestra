@@ -1,7 +1,26 @@
 <template>
-    <div v-if="ready">
+    <top-nav-bar v-if="!embed" :title="routeInfo.title">
+        <template #additional-right v-if="displayButtons">
+            <ul>
+                <template v-if="$route.name === 'flows/update'">
+                    <li>
+                        <template v-if="isAllowedEdit">
+                            <el-button :icon="Pencil" size="large" @click="editFlow" :disabled="isReadOnly">
+                                {{ $t('edit flow') }}
+                            </el-button>
+                        </template>
+                    </li>
+                    <li>
+                        <trigger-flow v-if="flow" :disabled="flow.disabled || isReadOnly" :flow-id="flow.id"
+                                      :namespace="flow.namespace" />
+                    </li>
+                </template>
+            </ul>
+        </template>
+    </top-nav-bar>
+    <div :class="{'mt-3': !embed}" v-if="ready">
         <data-table @page-changed="onPageChanged" ref="dataTable" :total="total" :size="pageSize" :page="pageNumber">
-            <template #navbar v-if="embed === false">
+            <template #navbar v-if="isDisplayedTop">
                 <el-form-item>
                     <search-field />
                 </el-form-item>
@@ -27,6 +46,30 @@
                     />
                 </el-form-item>
                 <el-form-item>
+                    <el-select
+                        v-model="displayColumns"
+                        multiple
+                        collapse-tags
+                        collapse-tags-tooltip
+                        @change="onDisplayColumnsChange($event)"
+                    >
+                        <el-option
+                            v-for="col in optionalColumns"
+                            :key="col.label"
+                            :label="$t(col.label)"
+                            :value="col.prop"
+                        />
+                    </el-select>
+                </el-form-item>
+                <el-form-item>
+                    <el-input
+                        :placeholder="$t('trigger execution id')"
+                        clearable
+                        :model-value="$route.query.triggerExecutionId"
+                        @update:model-value="onDataTableValue('triggerExecutionId', $event)"
+                    />
+                </el-form-item>
+                <el-form-item>
                     <label-filter
                         :model-value="$route.query.labels"
                         @update:model-value="onDataTableValue('labels', $event)"
@@ -37,7 +80,7 @@
                 </el-form-item>
             </template>
 
-            <template #top v-if="embed === false">
+            <template #top v-if="isDisplayedTop">
                 <state-global-chart
                     v-if="daily"
                     class="mb-4"
@@ -59,7 +102,7 @@
                     @row-dblclick="onRowDoubleClick"
                     @sort-change="onSort"
                     @selection-change="handleSelectionChange"
-                    :selectable="!hidden.includes('selection') && canCheck"
+                    :selectable="!hidden?.includes('selection') && canCheck"
                 >
                     <template #select-actions>
                         <bulk-select
@@ -81,14 +124,14 @@
                         </bulk-select>
                     </template>
                     <template #default>
-                        <el-table-column prop="id" v-if="!hidden.includes('id')" sortable="custom"
+                        <el-table-column prop="id" sortable="custom"
                                          :sort-orders="['ascending', 'descending']" :label="$t('id')">
                             <template #default="scope">
-                                <id :value="scope.row.id" :shrink="true" />
+                                <id :value="scope.row.id" :shrink="true" @click="onRowDoubleClick(scope.row)" />
                             </template>
                         </el-table-column>
 
-                        <el-table-column prop="state.startDate" v-if="!hidden.includes('state.startDate')"
+                        <el-table-column prop="state.startDate" v-if="displayColumn('state.startDate')"
                                          sortable="custom"
                                          :sort-orders="['ascending', 'descending']" :label="$t('start date')">
                             <template #default="scope">
@@ -96,31 +139,32 @@
                             </template>
                         </el-table-column>
 
-                        <el-table-column prop="state.endDate" v-if="!hidden.includes('state.endDate')" sortable="custom"
-                                         :sort-orders="['ascending', 'descending']" :label="$t('end date')">
+                        <el-table-column prop="state.endDate" v-if="displayColumn('state.endDate')" sortable="custom"
+                                         :sort-orders="['ascending', 'descending']"
+:label="$t('end date')">
                             <template #default="scope">
                                 <date-ago :inverted="true" :date="scope.row.state.endDate" />
                             </template>
                         </el-table-column>
 
-                        <el-table-column prop="state.duration" v-if="!hidden.includes('state.duration')"
+                        <el-table-column prop="state.duration" v-if="displayColumn('state.duration')"
                                          sortable="custom"
                                          :sort-orders="['ascending', 'descending']" :label="$t('duration')">
                             <template #default="scope">
                                 <span v-if="isRunning(scope.row)">{{
                                         $filters.humanizeDuration(durationFrom(scope.row))
-                                    }}</span>
+                                }}</span>
                                 <span v-else>{{ $filters.humanizeDuration(scope.row.state.duration) }}</span>
                             </template>
                         </el-table-column>
 
-                        <el-table-column v-if="$route.name !== 'flows/update' && !hidden.includes('namespace')"
+                        <el-table-column v-if="$route.name !== 'flows/update' && displayColumn('namespace')"
                                          prop="namespace"
                                          sortable="custom" :sort-orders="['ascending', 'descending']"
                                          :label="$t('namespace')"
                                          :formatter="(_, __, cellValue) => $filters.invisibleSpace(cellValue)" />
 
-                        <el-table-column v-if="$route.name !== 'flows/update' && !hidden.includes('flowId')"
+                        <el-table-column v-if="$route.name !== 'flows/update' && displayColumn('flowId')"
                                          prop="flowId"
                                          sortable="custom" :sort-orders="['ascending', 'descending']"
                                          :label="$t('flow')">
@@ -132,23 +176,55 @@
                             </template>
                         </el-table-column>
 
-                        <el-table-column v-if="!hidden.includes('labels')" :label="$t('labels')">
+                        <el-table-column v-if="displayColumn('labels')" :label="$t('labels')">
                             <template #default="scope">
                                 <labels :labels="scope.row.labels" />
                             </template>
                         </el-table-column>
 
-                        <el-table-column prop="state.current" v-if="!hidden.includes('state.current')" sortable="custom"
+                        <el-table-column prop="state.current" v-if="displayColumn('state.current')" sortable="custom"
                                          :sort-orders="['ascending', 'descending']" :label="$t('state')">
                             <template #default="scope">
                                 <status :status="scope.row.state.current" size="small" />
                             </template>
                         </el-table-column>
 
-                        <el-table-column prop="triggers" v-if="!hidden.includes('triggers')" :label="$t('triggers')"
+                        <el-table-column prop="triggers" v-if="displayColumn('triggers')" :label="$t('triggers')"
                                          class-name="shrink">
                             <template #default="scope">
                                 <trigger-avatar :execution="scope.row" />
+                            </template>
+                        </el-table-column>
+
+                        <el-table-column prop="flowRevision" v-if="displayColumn('flowRevision')" :label="$t('revision')"
+                                         class-name="shrink">
+                            <template #default="scope">
+                                <code>{{ scope.row.flowRevision }}</code>
+                            </template>
+                        </el-table-column>
+
+                        <el-table-column prop="inputs" v-if="displayColumn('inputs')" :label="$t('inputs')" align="center">
+                            <template #default="scope" >
+                                <el-tooltip>
+                                    <template #content>
+                                        <pre class="mb-0">{{ JSON.stringify(scope.row.inputs, null, '\t') }}</pre>
+                                    </template>
+                                    <Import v-if="scope.row.inputs" class="fs-5"/>
+                                </el-tooltip>
+                            </template>
+                        </el-table-column>
+
+                        <el-table-column prop="taskRunList.taskId" v-if="displayColumn('taskRunList.taskId')" :label="$t('task id')">
+                            <template #header="scope">
+                                <el-tooltip :content="$t('taskid column details')">
+                                    {{ scope.column.label }}
+                                </el-tooltip>
+                            </template>
+                            <template #default="scope">
+                                <code>
+                                    {{ scope.row.taskRunList?.slice(-1)[0].taskId }}
+                                    {{ scope.row.taskRunList?.slice(-1)[0].attempts?.length > 1 ? `(${scope.row.taskRunList?.slice(-1)[0].attempts.length})` : '' }}
+                                </code>
                             </template>
                         </el-table-column>
 
@@ -157,7 +233,7 @@
                                 <router-link
                                     :to="{name: 'executions/update', params: {namespace: scope.row.namespace, flowId: scope.row.flowId, id: scope.row.id}}">
                                     <kicon :tooltip="$t('details')" placement="left">
-                                        <eye />
+                                        <TextSearch />
                                     </kicon>
                                 </router-link>
                             </template>
@@ -166,24 +242,6 @@
                 </select-table>
             </template>
         </data-table>
-
-        <bottom-line v-if="displayBottomBar">
-            <ul>
-                <template v-if="$route.name === 'flows/update'">
-                    <li>
-                        <template v-if="isAllowedEdit">
-                            <el-button :icon="Pencil" size="large" @click="editFlow" :disabled="isReadOnly">
-                                {{ $t('edit flow') }}
-                            </el-button>
-                        </template>
-                    </li>
-                    <li>
-                        <trigger-flow v-if="flow" :disabled="flow.disabled || isReadOnly" :flow-id="flow.id"
-                                      :namespace="flow.namespace" />
-                    </li>
-                </template>
-            </ul>
-        </bottom-line>
     </div>
 </template>
 
@@ -194,15 +252,17 @@
     import Delete from "vue-material-design-icons/Delete.vue";
     import StopCircleOutline from "vue-material-design-icons/StopCircleOutline.vue";
     import Pencil from "vue-material-design-icons/Pencil.vue";
+    import Import from "vue-material-design-icons/Import.vue";
     import Utils from "../../utils/utils";
 </script>
 
 <script>
     import {mapState} from "vuex";
     import DataTable from "../layout/DataTable.vue";
-    import Eye from "vue-material-design-icons/Eye.vue";
+    import TextSearch from "vue-material-design-icons/TextSearch.vue";
     import Status from "../Status.vue";
     import RouteContext from "../../mixins/routeContext";
+    import TopNavBar from "../../components/layout/TopNavBar.vue";
     import DataTableActions from "../../mixins/dataTableActions";
     import SelectTableActions from "../../mixins/selectTableActions";
     import SearchField from "../layout/SearchField.vue";
@@ -220,16 +280,16 @@
     import State from "../../utils/state";
     import Id from "../Id.vue";
     import _merge from "lodash/merge";
-    import BottomLine from "../layout/BottomLine.vue";
     import permission from "../../models/permission";
     import action from "../../models/action";
     import TriggerFlow from "../../components/flows/TriggerFlow.vue";
+    import {storageKeys} from "../../utils/constants";
 
     export default {
         mixins: [RouteContext, RestoreUrl, DataTableActions, SelectTableActions],
         components: {
             Status,
-            Eye,
+            TextSearch,
             DataTable,
             SearchField,
             NamespaceSelect,
@@ -243,23 +303,27 @@
             Kicon,
             Labels,
             Id,
-            BottomLine,
-            TriggerFlow
+            TriggerFlow,
+            TopNavBar
         },
         props: {
-            embed: {
-                type: Boolean,
-                default: false
-            },
             hidden: {
                 type: Array,
-                default: () => []
+                default: null
             },
             statuses: {
                 type: Array,
                 default: () => []
             },
             isReadOnly: {
+                type: Boolean,
+                default: false
+            },
+            embed: {
+                type: Boolean,
+                default: false
+            },
+            filter: {
                 type: Boolean,
                 default: false
             }
@@ -270,8 +334,76 @@
                 dailyReady: false,
                 dblClickRouteName: "executions/update",
                 flowTriggerDetails: undefined,
-                recomputeInterval: false
+                recomputeInterval: false,
+                optionalColumns: [
+                    {
+                        label: "start date",
+                        prop: "state.startDate",
+                        default: true
+                    },
+                    {
+                        label: "end date",
+                        prop: "state.endDate",
+                        default: true
+                    },
+                    {
+                        label: "duration",
+                        prop: "state.duration",
+                        default: true
+                    },
+                    {
+                        label: "state",
+                        prop: "state.current",
+                        default: true
+                    },
+                    {
+                        label: "triggers",
+                        prop: "triggers",
+                        default: true
+                    },
+                    {
+                        label: "labels",
+                        prop: "labels",
+                        default: true
+                    },
+                    {
+                        label: "inputs",
+                        prop: "inputs",
+                        default: false
+                    },
+                    {
+                        label: "namespace",
+                        prop: "namespace",
+                        default: true
+                    },
+                    {
+                        label: "flow",
+                        prop: "flowId",
+                        default: true
+                    },
+                    {
+                        label: "revision",
+                        prop: "flowRevision",
+                        default: false
+                    },
+                    {
+                        label: "task id",
+                        prop: "taskRunList.taskId",
+                        default: false
+                    }
+                ],
+                displayColumns: [],
+                storageKey: storageKeys.DISPLAY_EXECUTIONS_COLUMNS
             };
+        },
+        created() {
+            // allow to have different storage key for flow executions list
+            if (this.$route.name === "flows/update") {
+                this.storageKey = storageKeys.DISPLAY_FLOW_EXECUTIONS_COLUMNS;
+                this.optionalColumns = this.optionalColumns.filter(col => col.prop !== "namespace" && col.prop !== "flowId")
+            }
+            this.displayColumns = localStorage.getItem(this.storageKey)?.split(",")
+                || this.optionalColumns.filter(col => col.default).map(col => col.prop);
         },
         computed: {
             ...mapState("execution", ["executions", "total"]),
@@ -294,7 +426,7 @@
                 return this.$route.query.startDate ? this.$route.query.startDate : this.$moment(this.endDate)
                     .add(-30, "days").toISOString(true);
             },
-            displayBottomBar() {
+            displayButtons() {
                 return (this.$route.name === "flows/update");
             },
             canCheck() {
@@ -308,9 +440,19 @@
             },
             isAllowedEdit() {
                 return this.user.isAllowed(permission.FLOW, action.UPDATE, this.flow.namespace);
+            },
+            isDisplayedTop() {
+                return this.embed === false || this.filter
             }
         },
         methods: {
+            onDisplayColumnsChange(event) {
+                localStorage.setItem("displayExecutionsColumns", event);
+                this.displayColumns = event;
+            },
+            displayColumn(column) {
+                return this.hidden ? !this.hidden.includes(column) : this.displayColumns.includes(column);
+            },
             refresh() {
                 this.recomputeInterval = !this.recomputeInterval;
                 this.load();
@@ -345,7 +487,7 @@
                 return _merge(base, queryFilter)
             },
             loadData(callback) {
-                if (this.embed === false) {
+                if (this.isDisplayedTop) {
                     this.dailyReady = false;
 
                     this.$store

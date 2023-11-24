@@ -1,5 +1,6 @@
 <template>
-    <div v-if="ready">
+    <top-nav-bar :title="routeInfo.title" />
+    <div class="mt-3" v-if="ready">
         <div>
             <data-table
                 @page-changed="onPageChanged"
@@ -104,11 +105,9 @@
                 </template>
                 {{ $t("unlock trigger.warning") }}
                 <template #footer>
-                    <el-form-item class="submit">
-                        <el-button :icon="LockOff" @click="unlock" type="primary">
-                            {{ $t('unlock trigger.button') }}
-                        </el-button>
-                    </el-form-item>
+                    <el-button :icon="LockOff" @click="unlock" type="primary">
+                        {{ $t('unlock trigger.button') }}
+                    </el-button>
                 </template>
             </el-dialog>
         </div>
@@ -119,6 +118,7 @@
     import Kicon from "../Kicon.vue";
     import permission from "../../models/permission";
     import action from "../../models/action";
+    import TopNavBar from "../layout/TopNavBar.vue";
 </script>
 <script>
     import NamespaceSelect from "../namespace/NamespaceSelect.vue";

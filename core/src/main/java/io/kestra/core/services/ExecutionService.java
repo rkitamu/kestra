@@ -215,7 +215,7 @@ public class ExecutionService {
             if (!isFlowable || s.equals(taskRunId)) {
                 TaskRun newTaskRun = originalTaskRun.withState(newState);
 
-                if (originalTaskRun.getAttempts() != null && originalTaskRun.getAttempts().size() > 0) {
+                if (originalTaskRun.getAttempts() != null && !originalTaskRun.getAttempts().isEmpty()) {
                     ArrayList<TaskRunAttempt> attempts = new ArrayList<>(originalTaskRun.getAttempts());
                     attempts.set(attempts.size() - 1, attempts.get(attempts.size() - 1).withState(newState));
                     newTaskRun = newTaskRun.withAttempts(attempts);
@@ -227,6 +227,11 @@ public class ExecutionService {
             }
         }
 
+
+        if (newExecution.getTaskRunList().stream().anyMatch(t -> t.getState().getCurrent() == State.Type.PAUSED)) {
+            // there is still some tasks paused, this can occur with parallel pause
+            return newExecution;
+        }
         return newExecution
             .withState(State.Type.RESTARTED);
     }
@@ -251,6 +256,7 @@ public class ExecutionService {
                 null,
                 endDate,
                 state,
+                null,
                 null
             )
             .map(execution -> {
@@ -269,7 +275,7 @@ public class ExecutionService {
                 }
 
                 if (purgeStorage) {
-                    builder.storagesCount(storageInterface.deleteByPrefix(execution.getTenantId(), URI.create("/" + storageInterface.executionPrefix(
+                    builder.storagesCount(storageInterface.deleteByPrefix(execution.getTenantId(), URI.create("kestra://" + storageInterface.executionPrefix(
                         execution))).size());
                 }
 

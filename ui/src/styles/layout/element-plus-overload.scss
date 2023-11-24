@@ -43,6 +43,10 @@
             color: var(--bs-white) !important;
         }
     }
+
+    &.no-focus {
+        outline: none !important;
+    }
 }
 
 .el-input-group__append, .el-input-group__prepend {
@@ -85,11 +89,7 @@
         display: flex;
         cursor: pointer;
         margin-left: 10px;
-        line-height: 30px;
-
-        .material-design-icon {
-            margin-right: 6px;
-        }
+        gap: calc(var(--spacer) / 2);
     }
 
     input[type="file"] {
@@ -169,16 +169,22 @@ form.ks-horizontal {
         }
 
         @include res(sm) {
+            $label-size: math.div(1, 24) * 4 * 100 * 1%;
+            --label-size: #{$label-size};
+            &.small {
+                --label-size: calc(#{$label-size} / 2);
+            }
+
             .el-form-item__label {
-                max-width: (math.div(1, 24) * 4 * 100) * 1%;
-                flex: 0 0 (math.div(1, 24) * 4 * 100) * 1%;
+                max-width: var(--label-size);
+                flex: 0 0 var(--label-size);
                 text-align: right;
             }
 
             .el-form-item__content {
                 align-items: flex-start;
-                max-width: (math.div(1, 24) * 20 * 100) * 1%;
-                flex: 0 0 (math.div(1, 24) * 20 * 100) * 1%;
+                max-width: calc(100% - var(--label-size));
+                flex: 0 0 calc(100% - var(--label-size));
             }
         }
     }
@@ -187,12 +193,9 @@ form.ks-horizontal {
         text-align: right;
 
         .el-form-item__content {
-            max-width: 100%;
-            flex: 0 0 100%;
-        }
-
-        .el-button {
-            margin-left: auto;
+            justify-content: end;
+            max-width: unset;
+            flex: 1;
         }
     }
 }
@@ -396,6 +399,10 @@ form.ks-horizontal {
 .el-popper {
     border-radius: $border-radius-lg;
 
+    &.hide-arrow .el-popper__arrow {
+        display: none;
+    }
+
     &.is-light {
         border: 1px solid var(--bs-border-color);
 
@@ -406,6 +413,7 @@ form.ks-horizontal {
 
     &.is-dark {
         color: var(--bs-gray-100);
+
         background: var(--bs-gray-900);
         border: 1px solid var(--bs-border-color);
 
@@ -451,8 +459,75 @@ form.ks-horizontal {
 
 // dropdown
 .el-dropdown__popper {
+    font-size: var(--el-font-size-small);
     --el-dropdown-menuItem-hover-fill: var(--bs-gray-300);
     --el-dropdown-menuItem-hover-color: var(--bs-body-color);
+
+    &.separator-m-0 .el-dropdown-menu__item--divided {
+        margin: 0;
+    }
+
+    .m-dropdown-menu {
+        display: flex;
+        flex-direction: column;
+        width: 20rem;
+        padding: 0;
+    }
+
+    .el-dropdown-menu {
+        padding: 0;
+    }
+
+    // no longer require focus to get hover effect on dropdowns
+    .el-dropdown-menu__item {
+        &:is(li) {
+            display: flex;
+            gap: calc(var(--spacer) / 2);
+
+            i {
+                margin-right: 0;
+            }
+        }
+
+        &:not(.is-disabled):hover {
+            background-color: var(--el-dropdown-menuItem-hover-fill);
+        }
+    }
+}
+
+// autocomplete
+.el-autocomplete {
+
+    .el-input {
+        height: 100%;
+    }
+
+    .el-input__prefix, .el-input__inner, .el-input__inner::placeholder {
+        color: var(--bs-body-color);
+    }
+
+    .el-input__suffix-inner {
+        gap: calc(var(--spacer) / 2);
+
+        > span:not(.material-design-icon) {
+            font-size: 0.75rem;
+            line-height: 1.25rem;
+        }
+    }
+}
+.el-autocomplete-suggestion {
+    .el-autocomplete-suggestion__wrap {
+        max-height: 40vh;
+    }
+    li {
+        --el-fill-color-light: var(--bs-gray-300);
+        padding: 0 var(--spacer);
+
+        a {
+            color: var(--bs-body-color);
+            justify-content: space-between;
+        }
+    }
 }
 
 // drawer
@@ -524,7 +599,7 @@ form.ks-horizontal {
         font-size: var(--font-size-lg);
 
         html.dark & {
-            background-color: var(--bs-gray-200);
+            background-color: var(--bs-gray-100);
         }
     }
 }
@@ -648,7 +723,7 @@ form.ks-horizontal {
         background-color: var(--bs-gray-300);
 
         html.dark & {
-            background-color: var(--bs-gray-200);
+            background-color: var(--bs-gray-100);
         }
 
         margin-right: 0;
@@ -658,6 +733,10 @@ form.ks-horizontal {
         html.dark & {
             color: var(--bs-white)
         }
+    }
+
+    .el-dialog__headerbtn .el-dialog__close {
+        color: var(--bs-primary);
     }
 }
 

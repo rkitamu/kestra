@@ -43,9 +43,9 @@ public class RunContext {
     private ApplicationContext applicationContext;
     private VariableRenderer variableRenderer;
     private StorageInterface storageInterface;
-    private String envPrefix;
     private MetricRegistry meterRegistry;
     private Path tempBasedPath;
+    private RunContextCache runContextCache;
 
     private URI storageOutputPrefix;
     private URI storageExecutionPrefix;
@@ -83,7 +83,7 @@ public class RunContext {
     public RunContext(ApplicationContext applicationContext, Flow flow, Task task, Execution execution, TaskRun taskRun) {
         this.initBean(applicationContext);
         this.initContext(flow, task, execution, taskRun);
-        this.initLogger(taskRun);
+        this.initLogger(taskRun, task);
     }
 
     /**
@@ -120,8 +120,8 @@ public class RunContext {
         this.applicationContext = applicationContext;
         this.variableRenderer = applicationContext.findBean(VariableRenderer.class).orElseThrow();
         this.storageInterface = applicationContext.findBean(StorageInterface.class).orElse(null);
-        this.envPrefix = applicationContext.getProperty("kestra.variables.env-vars-prefix", String.class, "KESTRA_");
         this.meterRegistry = applicationContext.findBean(MetricRegistry.class).orElseThrow();
+        this.runContextCache = applicationContext.findBean(RunContextCache.class).orElseThrow();
         this.tempBasedPath = Path.of(applicationContext
             .getProperty("kestra.tasks.tmp-dir.path", String.class)
             .orElse(System.getProperty("java.io.tmpdir"))
@@ -136,13 +136,14 @@ public class RunContext {
     }
 
     @SuppressWarnings("unchecked")
-    private void initLogger(TaskRun taskRun) {
+    private void initLogger(TaskRun taskRun, Task task) {
         this.runContextLogger = new RunContextLogger(
             applicationContext.findBean(
                 QueueInterface.class,
                 Qualifiers.byName(QueueFactoryInterface.WORKERTASKLOG_NAMED)
             ).orElseThrow(),
-            LogEntry.of(taskRun)
+            LogEntry.of(taskRun),
+            task.getLogLevel()
         );
     }
 
@@ -153,7 +154,8 @@ public class RunContext {
                 QueueInterface.class,
                 Qualifiers.byName(QueueFactoryInterface.WORKERTASKLOG_NAMED)
             ).orElseThrow(),
-            LogEntry.of(execution)
+            LogEntry.of(execution),
+            null
         );
     }
 
@@ -164,7 +166,8 @@ public class RunContext {
                 QueueInterface.class,
                 Qualifiers.byName(QueueFactoryInterface.WORKERTASKLOG_NAMED)
             ).orElseThrow(),
-            LogEntry.of(triggerContext, trigger)
+            LogEntry.of(triggerContext, trigger),
+            trigger.getMinLogLevel()
         );
     }
 
@@ -175,7 +178,8 @@ public class RunContext {
                 QueueInterface.class,
                 Qualifiers.byName(QueueFactoryInterface.WORKERTASKLOG_NAMED)
             ).orElseThrow(),
-            LogEntry.of(flow, trigger)
+            LogEntry.of(flow, trigger),
+            trigger.getMinLogLevel()
         );
     }
 
@@ -204,13 +208,8 @@ public class RunContext {
 
     protected Map<String, Object> variables(Flow flow, Task task, Execution execution, TaskRun taskRun, AbstractTrigger trigger) {
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.<String, Object>builder()
-            .put("envs", envVariables());
-
-        if (applicationContext.getProperty("kestra.variables.globals", Map.class).isPresent()) {
-            builder.put("globals", applicationContext.getProperty("kestra.variables.globals", Map.class).get());
-        } else {
-            builder.put("globals", Map.of());
-        }
+            .put("envs", runContextCache.getEnvVars())
+            .put("globals", runContextCache.getGlobalVars());
 
         if (flow != null) {
             if (flow.getVariables() != null) {
@@ -295,22 +294,6 @@ public class RunContext {
         return builder.build();
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private Map<String, String> envVariables() {
-        Map<String, String> result = new HashMap<>(System.getenv());
-        result.putAll((Map) System.getProperties());
-
-        return result
-            .entrySet()
-            .stream()
-            .filter(e -> e.getKey().startsWith(this.envPrefix))
-            .map(e -> new AbstractMap.SimpleEntry<>(
-                e.getKey().substring(this.envPrefix.length()).toLowerCase(),
-                e.getValue()
-            ))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
     private Map<String, Object> variables(TaskRun taskRun) {
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.<String, Object>builder()
             .put("id", taskRun.getId())
@@ -323,6 +306,10 @@ public class RunContext {
 
         if (taskRun.getValue() != null) {
             builder.put("value", taskRun.getValue());
+        }
+
+        if(taskRun.getItems() != null) {
+            builder.put("items", taskRun.getItems());
         }
 
         return builder.build();
@@ -382,7 +369,6 @@ public class RunContext {
         runContext.storageInterface = this.storageInterface;
         runContext.storageOutputPrefix = this.storageOutputPrefix;
         runContext.storageExecutionPrefix = this.storageExecutionPrefix;
-        runContext.envPrefix = this.envPrefix;
         runContext.variables = variables;
         runContext.metrics = new ArrayList<>();
         runContext.meterRegistry = this.meterRegistry;
@@ -402,7 +388,7 @@ public class RunContext {
 
     public RunContext forWorker(ApplicationContext applicationContext, WorkerTask workerTask) {
         this.initBean(applicationContext);
-        this.initLogger(workerTask.getTaskRun());
+        this.initLogger(workerTask.getTaskRun(), workerTask.getTask());
 
         Map<String, Object> clone = new HashMap<>(this.variables);
 
@@ -411,6 +397,16 @@ public class RunContext {
 
         clone.remove("task");
         clone.put("task", this.variables(workerTask.getTask()));
+
+        if (clone.containsKey("workerTaskrun") && ((Map<String, Object>) clone.get("workerTaskrun")).containsKey("value")) {
+            Map<String, Object> workerTaskrun = ((Map<String, Object>) clone.get("workerTaskrun"));
+            Map<String, Object> taskrun = new HashMap<>((Map<String, Object>) clone.get("taskrun"));
+
+            taskrun.put("value", workerTaskrun.get("value"));
+
+            clone.remove("taskrun");
+            clone.put("taskrun", taskrun);
+        }
 
         this.variables = ImmutableMap.copyOf(clone);
         this.storageExecutionPrefix = URI.create("/" + this.storageInterface.executionPrefix(workerTask.getTaskRun()));
@@ -424,6 +420,18 @@ public class RunContext {
 
         // Mutability hack to update the triggerExecutionId for each evaluation on the worker
         return forScheduler(workerTrigger.getTriggerContext(), workerTrigger.getTrigger());
+    }
+
+    public RunContext forWorkerDirectory(ApplicationContext applicationContext, WorkerTask workerTask) {
+        forWorker(applicationContext, workerTask);
+
+        Map<String, Object> clone = new HashMap<>(this.variables);
+
+        clone.put("workerTaskrun", clone.get("taskrun"));
+
+        this.variables = ImmutableMap.copyOf(clone);
+
+        return this;
     }
 
     public String render(String inline) throws IllegalVariableEvaluationException {
@@ -560,9 +568,10 @@ public class RunContext {
         try (InputStream fileInput = new FileInputStream(file)) {
             return this.putTempFile(fileInput, prefix, (name != null ? name : file.getName()));
         } finally {
-            boolean delete = file.delete();
-            if (!delete) {
-                runContextLogger.logger().warn("Failed to delete temporary file");
+            try {
+                Files.delete(file.toPath());
+            } catch (IOException e) {
+                runContextLogger.logger().warn("Failed to delete temporary file '{}'", file.toPath(), e);
             }
         }
     }
@@ -711,9 +720,13 @@ public class RunContext {
         ImmutableMap.Builder<String, String> builder = ImmutableMap.<String, String>builder();
 
         if (this.variables.containsKey("flow")) {
+            var flowVars = ((Map<String, String>) this.variables.get("flow"));
             builder
-                .put(MetricRegistry.TAG_FLOW_ID, ((Map<String, String>) this.variables.get("flow")).get("id"))
-                .put(MetricRegistry.TAG_NAMESPACE_ID, ((Map<String, String>) this.variables.get("flow")).get("namespace"));
+                .put(MetricRegistry.TAG_FLOW_ID, flowVars.get("id"))
+                .put(MetricRegistry.TAG_NAMESPACE_ID, flowVars.get("namespace"));
+            if (flowVars.containsKey("tenantId")) {
+                builder.put(MetricRegistry.TAG_TENANT_ID, flowVars.get("tenantId"));
+            }
         }
 
         return builder.build();
